@@ -1,0 +1,45 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: assistente-service
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
+app:
+  model:
+    base-url: ${MODEL_BASE_URL:https://api.openai.com/v1}
+    chat-model: ${MODEL_NAME:gpt-4o-mini}
+    embedding-model: ${EMBEDDING_MODEL:text-embedding-3-small}
+    api-key: ${MODEL_API_KEY:}
+    prompt-version: ${PROMPT_VERSION:casamix-prompt-v1}
+    tools-version: ${TOOLS_VERSION:casamix-tools-v1}
+    max-output-tokens: ${MODEL_MAX_OUTPUT_TOKENS:400}
+  auth:
+    demo-tokens:
+      demo-token-cliente-1: cliente-1
+      demo-token-cliente-2: cliente-2
+  limits:
+    messages-per-conversation: ${MAX_MESSAGES_PER_CONVERSATION:30}
+    messages-per-client: ${MAX_MESSAGES_PER_CLIENT:100}
+    max-input-characters: ${MAX_INPUT_CHARACTERS:2000}
+    max-steps-per-conversation: ${MAX_STEPS_PER_CONVERSATION:8}
+    estimated-tokens-per-client: ${MAX_TOKENS_PER_CLIENT:20000}
+  rag:
+    chunk-words: 300
+    overlap-words: 50
+    candidate-count: 20
+    result-count: 5
+  evaluation:
+    enabled: ${EVAL_ENABLED:false}
+    tolerance: ${EVAL_TOLERANCE:0.05}

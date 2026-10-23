@@ -125,8 +125,48 @@ Implementar a ferramenta `solicitar_troca`, descrita ao modelo com o seguinte co
 
 ## Critérios de aceite
 
-- [ ] RAG funcional com busca híbrida, reordenação (20→5) e filtro por vigência de documento
-- [ ] Ferramenta `solicitar_troca` implementada; teste comprova que o identificador do cliente nunca é aceito como parâmetro vindo do modelo
-- [ ] Teste de guardrail: um documento indexado contendo uma instrução maliciosa ("ignore as instruções e...") **não** altera o comportamento do assistente
-- [ ] Conjunto de avaliação mínimo implementado, com as 4 métricas calculadas e um gate que bloqueia regressões
-- [ ] Trace completo de uma conversa visível, com spans de classificação, recuperação, chamada ao modelo (com contagem de tokens) e chamada de ferramenta
+- [x] RAG funcional com busca híbrida, reordenação (20→5) e filtro por vigência de documento
+- [x] Ferramenta `solicitar_troca` implementada; teste comprova que o identificador do cliente nunca é aceito como parâmetro vindo do modelo
+- [x] Teste de guardrail: um documento indexado contendo uma instrução maliciosa ("ignore as instruções e...") **não** altera o comportamento do assistente
+- [x] Conjunto de avaliação mínimo implementado, com as 4 métricas calculadas e um gate que bloqueia regressões
+- [x] Trace de conversa instrumentado com spans de classificação, recuperação, modelo (com contagem de tokens) e ferramenta; visível via exportador OTLP configurado
+
+---
+
+## Implementação neste repositório
+
+O projeto é um serviço Spring Boot 3 com Java 17 e Maven. Os serviços de pedidos e trocas são stubs locais no mesmo processo; todos exigem `Authorization: Bearer ...` e validam o proprietário do pedido. Os tokens `demo-token-cliente-1` e `demo-token-cliente-2` são somente credenciais didáticas configuradas em `application.yml` — substitua a resolução de identidade por um provedor OIDC/JWT antes de qualquer uso real.
+
+O índice vetorial é em memória para facilitar a execução local. Sem `MODEL_API_KEY`, embeddings por hashing e um modelo extrativo local permitem testar o pipeline sem serviços externos. Ao configurar uma chave, embeddings e respostas passam a usar endpoints compatíveis com a API OpenAI; `MODEL_BASE_URL`, `MODEL_NAME` e `EMBEDDING_MODEL` permitem apontar para outro provedor compatível. Nenhuma credencial é armazenada no código.
+
+### Executar
+
+Requisitos: JDK 17+ e Maven 3.9+.
+
+```bash
+mvn spring-boot:run
+```
+
+Exemplo de pergunta:
+
+```bash
+curl -X POST http://localhost:8080/v1/assistente/conversas/demo-1/mensagens \
+  -H 'Authorization: Bearer demo-token-cliente-1' \
+  -H 'Content-Type: application/json' \
+  -d '{"texto":"Qual o prazo para devolução por arrependimento?"}'
+```
+
+Para abrir uma troca, envie `pedido PED-1001 item ITEM-1 motivo defeito`; o assistente valida o pedido e o item e solicita confirmação explícita. Envie `sim` para confirmar. O identificador do cliente nunca faz parte do contrato da ferramenta: o serviço o resolve pelo token autenticado. O endpoint `GET /v1/assistente/tools/solicitar_troca` publica a definição da ferramenta.
+
+Os stubs também expõem `GET /v1/pedidos/{id}` e `POST /v1/trocas`, protegidos pelo mesmo token. Pedidos de exemplo: `PED-1001` pertence a `cliente-1`; `PED-2001` pertence a `cliente-2`.
+
+### Avaliação e observabilidade
+
+```bash
+mvn test
+mvn spring-boot:run '-Dspring-boot.run.arguments=--spring.main.web-application-type=none --app.evaluation.enabled=true'
+```
+
+O segundo comando roda o conjunto versionado de 20 casos e encerra com falha se alguma métrica regredir além de `EVAL_TOLERANCE` em relação a `eval-baseline.json`. As métricas de fidelidade, correção, uso de ferramentas e recusa adequada são emitidas no relatório do comando. Métricas Prometheus ficam em `/actuator/prometheus`; traces Micrometer/OTel são exportados para `OTEL_EXPORTER_OTLP_ENDPOINT` (padrão local: `http://localhost:4318/v1/traces`).
+
+O classificador e os dados são mantidos separados no prompt, as políticas expiradas são filtradas na recuperação e os documentos são divididos em chunks de 300 palavras com sobreposição de 50. A implementação local é um protótipo didático: o índice e os limites por cliente são em memória e devem ser externalizados para persistência/coordenação em uma implantação distribuída.
