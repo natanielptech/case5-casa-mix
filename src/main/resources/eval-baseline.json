@@ -1,0 +1,7 @@
+{
+  "faithfulness": 0.8,
+  "correctness": 0.8,
+  "toolUsage": 0.8,
+  "appropriateRefusal": 0.8,
+  "cases": 20
+}
